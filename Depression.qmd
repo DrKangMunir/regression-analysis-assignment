@@ -1,0 +1,1287 @@
+---
+title: "Logistic Regression Analysis of Depression Data"
+author: "Munir (23202537), Farihah (23202679), Sanggary (23202894), Khairunnisa (23202532) "
+date: "`r Sys.Date()`"
+categories: [R, Logistic Regression, Medical Statistics]
+tags: [R, Logistic Regression, Medical Statistics]
+format: 
+  html:
+    theme: cerulean
+    toc: true
+    toc-expand: 1
+    toc-location: left
+    code-fold: true     
+    code-summary: "Show code" 
+    code-tools: true
+    number-sections: true
+    number-depth: 3 
+    
+execute:
+  echo: true
+  warning: false
+  message: false
+  comment: NA
+---
+
+# Introduction
+
+## Research Question / Objective
+
+To study the association between physical activity, obesity, years of working, and the presence of depression among adults. 
+
+Specifically, we aim to:
+
+1.   Assess the individual effects of physical activity, obesity, and years of working on depression risk.
+2.   Investigate potential interaction effects between physical activity and obesity on depression.
+3.   Control for confounding factors and evaluate model fit and assumptions.
+
+# Part A: Dataset and variable creation
+
+```{r}
+#| label: simulate-data
+#| include: true
+
+library(broom.helpers)
+
+set.seed(3030)
+n <- 200
+
+years_working <- round(runif(n, 0, 40), 1)
+phys_activity <- round(runif(n, 0, 10), 1)
+phys_c <- phys_activity - mean(phys_activity)
+
+# More balanced obesity prevalence
+obesity <- rbinom(n, 1, 0.45)
+
+# Coefficients tuned for moderate ORs
+b1 <- 0.06
+b2 <- -0.30
+b3 <- 0.5    # obesity OR ≈ 1.65
+b4 <- -0.20  # weaker interaction
+
+# Calibrate intercept for ~25% prevalence
+mean_prev <- function(b0){
+  lp <- b0 + b1*years_working + b2*phys_c + b3*obesity + b4*phys_c*obesity
+  mean(plogis(lp))
+}
+b0 <- uniroot(function(x) mean_prev(x) - 0.25, interval = c(-8, 2))$root
+
+linpred <- b0 + b1*years_working + b2*phys_c + b3*obesity + b4*phys_c*obesity
+p <- plogis(linpred)
+p <- pmin(pmax(p, 0.05), 0.95)   # clamp to avoid separation
+y <- rbinom(n, 1, p)
+
+depression_data <- data.frame(
+  years_working, phys_activity, obesity, depression = y
+)
+
+head(depression_data)
+
+```
+
+Generate a dataset with 200 observations containing the following variables:
+
+-   Outcome variables: depression (binary, 0 = no depression, 1 = depression)
+-   Covariates:
+    -   years_working (continious, ranging 0-40 years)
+    -   phys_activity (Physical activity score, continious, range 0-10)
+    -   obesity (binary, 0 = not obese, 1 = obese)
+-   Include an interaction effect between phys_activity and obesity on depression.
+
+## Data Preperation
+
+## Load libraries
+
+```{r}
+#| label: load-libraries
+
+library(gtsummary)
+library(gt)
+library(broom)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+## Data cleaning and coding
+
+```{r}
+#| label: data-prep
+#| include: true
+
+
+depression_data$obesity <- factor(depression_data$obesity,
+                                  levels = c(0, 1),
+                                  labels = c("not obese", "obese"))
+
+depression_data$depression <- factor(depression_data$depression,
+                                     levels = c(0, 1),
+                                     labels = c("no", "yes"))
+
+glimpse(depression_data)
+```
+
+*Interpretation* : The structure of the data shows that 'years_working' and 'phys_activity' are numeric variables, while 'obesity' and 'depression' are factors with two levels each.
+
+## Label variables
+
+```{r}
+#| label: label-variables
+#| include: true
+
+library(labelled)
+var_label(depression_data$years_working) <- "Years of Working"
+var_label(depression_data$phys_activity) <- "Physical Activity Score"
+var_label(depression_data$obesity) <- "Obesity Status"
+var_label(depression_data$depression) <- "Depression Status"
+```
+
+# Part B: Exploratory Data Analysis
+
+## Descriptive statistics
+
+```{r}
+#| label: descriptive-stats-summarytools
+#| include: true
+
+
+library(summarytools)
+
+print(dfSummary(depression_data,  
+                style        = "grid",  
+                varnumbers   = FALSE,
+                valid.col    = FALSE
+                ),
+      method = "render")
+```
+
+*Interpretation* : The mean duration of working experience was 21.2 years (SD = 11.8). The average physical activity score was 4.9 (SD = 2.8), indicating moderate variability across individuals. Nearly half of the participants (47.0%) were classified as obese, while 27.0% reported experiencing depression.
+
+## Histogram for numerical variables
+
+```{r}
+#| label: histograms-continuous-vars
+#| include: true
+#| fig-cap: "Histograms of Continuous Variables"
+
+# Select continuous variables from depression_data
+continuous_vars <- depression_data %>% 
+  dplyr:: select(years_working, phys_activity)
+
+# Create histograms for each continuous variable
+continuous_vars %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = variable)) +
+  geom_histogram(color = "white", bins = 30) +
+  facet_wrap(~variable, scales = "free") +
+  scale_fill_manual(values = c("phys_activity" = "firebrick", 
+                               "years_working" = "dodgerblue4")) +
+  theme_minimal() +
+  labs(title = "Distribution of Continuous Variables",
+       x = "Value",
+       y = "Frequency")
+```
+
+*Interpretation* :
+
+-   The distribution of physical activity scores appears relatively uniform, with modest peaks around values 5 and 7, suggesting a balanced spread of activity levels across the sample.
+-   In contrast, the distribution of years working is more variable and right-skewed, with noticeable peaks around 10, 20, and 35 years. This indicates substantial heterogeneity in work experience, with a considerable portion of participants reporting extended career durations.
+
+## Boxplots for numerical variables by obesity status
+
+```{r}
+#| label: boxplots-continuous-vars
+#| include: true
+#| fig-cap: "Boxplots of Continuous Variables by Obesity Status"
+
+# Create box plots by obesity status
+depression_data %>%
+  dplyr::select(obesity) %>%
+  bind_cols(continuous_vars) %>%
+  pivot_longer(cols = -obesity, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = obesity, y = value, fill = obesity)) +
+  geom_boxplot(alpha = 0.7) +
+  facet_wrap(~variable, scales = "free_y") +
+  scale_fill_manual(values = c("not obese" = "firebrick", 
+                               "obese" = "dodgerblue4")) +
+  theme_minimal() +
+  labs(title = "Box Plots of Continuous Variables by Obesity Status",
+       x = "Obesity Status",
+       y = "Value") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+*Interpretation* :
+
+-   Physical activity scores remain similar across obesity groups, with both showing median values near 5 and interquartile ranges between approximately 2.5 and 7.5. This indicates comparable activity levels regardless of obesity classification.
+-   Interestingly, the median years of working is slightly higher among individuals classified as obese. Both groups exhibit a wide range of work experience (0 to 40 years), suggesting occupational diversity that may intersect with obesity status.
+
+## Bar plots for categorical variables
+
+```{r}
+#| label: barplots-categorical-vars
+#| include: true
+#| fig-cap: "Bar Plots of Categorical Variables"
+
+
+ggplot(depression_data, aes(x = obesity, fill = obesity)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Distribution of Obesity Status",
+       x = "Obesity Status",
+       y = "Count") +
+  scale_fill_manual(values = c("not obese" = "firebrick",
+                               "obese" = "dodgerblue4")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+*Interpretation* : Among the 200 participants, 53.0% were classified as not obese, while 47.0% were classified as obese. This near-equal distribution provides a balanced representation of obesity status within the sample, allowing for meaningful comparisons across health and behavioral variables.
+
+## Bar plots for depression by obesity status
+
+```{r}
+#| label: barplots-depression-by-obesity
+#| include: true
+#| fig-cap: "Bar Plots of Depression Status by Obesity Status"
+
+ggplot(depression_data, aes(x = depression, fill = obesity)) +
+  geom_bar(position = "dodge") +
+  theme_minimal() +
+  labs(title = "Distribution of Obesity Status by Depression Status",
+       x = "Depression Status",
+       y = "Count") +
+  scale_fill_manual(values = c("not obese" = "firebrick",
+                               "obese" = "dodgerblue4")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+*Interpretation* :
+
+-   Among participants without depression, the majority were classified as not obese, with a smaller proportion falling into the obese category.
+-   In contrast, among those reporting depression, the distribution shifts slightly—fewer individuals were not obese, while the number of obese individuals was marginally higher.
+-   This pattern suggests a potential association between depression and obesity, warranting further investigation into their interrelated behavioral or physiological pathways.
+
+# Part C: Regression Analysis
+
+## Univariate analysis
+
+### Years of working
+
+```{r}
+#| label: univariate-years-working
+#| include: true
+#| tab-cap: "Univariate Model - Years of Working"
+
+mlog_yw <- glm(depression ~ years_working, 
+                 data = depression_data, 
+                 family = binomial)
+
+tbl_regression(mlog_yw, intercept = TRUE, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 2: Univariate Model - Years of Working"
+  )
+```
+
+### Physical activity
+
+```{r}
+#| label: univariate-phys-activity
+#| include: true
+#| tab-cap: "Univariate Model - Physical Activity"
+
+mlog_pa <- glm(depression ~ phys_activity, 
+                 data = depression_data, 
+                 family = binomial)
+
+tbl_regression(mlog_pa, intercept = TRUE, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 3: Univariate Model - Physical Activity"
+  )
+```
+
+### Obesity
+
+```{r}
+#| label: univariate-obesity
+#| include: true
+#| tab-cap: "Univariate Model - Obesity"
+
+mlog_ob <- glm(depression ~ obesity, 
+                 data = depression_data, 
+                 family = binomial)
+
+tbl_regression(mlog_ob, intercept = TRUE, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 4: Univariate Model - Obesity"
+  )
+```
+
+*Interpretation* : Based on the univariable analysis, years of working and physical activity are significantly associated with depression status (95% CI not include 1). However, obesity status shows a non-significant association (95% CI include 1).
+
+## Multivariable analysis
+
+### Model Full: Physical activity, Obesity and Years of working,
+
+```{r}
+#| label: multivariable-model:full
+#| include: true
+#| tab-cap: "Multivariable Full Model Results"
+
+mlog_full <- glm(depression ~ years_working + phys_activity + obesity, 
+                 data = depression_data, 
+                 family = binomial)
+
+tbl_regression(mlog_full, intercept = TRUE, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 8: Multivariable Full Model Results"
+  )
+```
+
+### Model Interaction: Physical activity and obesity interaction
+
+```{r}
+#| label: interaction-model- phys-activity-obesity
+#| include: true
+#| tab-cap: "Interaction Model - Physical Activity and Obesity"
+
+mloginter_pa.ob <- glm(depression ~ years_working + phys_activity + obesity + phys_activity:obesity,
+                 data = depression_data, 
+                 family = binomial)
+
+tbl_regression(mloginter_pa.ob, intercept = TRUE, exponentiate = TRUE) %>%
+  bold_p(t = 0.05) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 10: Interaction Model - Physical Activity and Obesity"
+  )
+```
+
+
+*Interpretation* : Physical activity and obesity interaction term is significant (p \< 0.05), indicating that the effect of physical activity on depression varies by obesity status.
+
+## Model comparison and selection
+
+Model fit:
+
+-   Model 1: depression \~ years_working + phys_activity + obesity
+-   Model 2: depression \~ years_working + phys_activity + obesity + phys_activity:obesity
+
+```{r}
+mod1 <- mlog_full
+mod2 <- mloginter_pa.ob
+```
+
+### ANOVA to compare nested models
+
+```{r}
+anova(mod1, mod2)
+```
+
+*Interpretation* : 
+
+- The likelihood ratio test comparing nested models showed that adding the interaction between physical activity and obesity significantly improved model fit (p = 0.013). 
+- This suggests that the association between physical activity and depression differs by obesity status, supporting inclusion of the interaction term in the final model.
+
+# Part D: Model Checking
+
+## Check assumptions
+
+### Linearity of the logit for continuous variables
+
+```{r}
+#| label: linearity-logit
+#| include: true
+
+library(mfp)
+
+lin_pa.yw <-  mfp(depression ~ fp(years_working) + fp(phys_activity) + obesity,
+                     data = depression_data,
+                     family = binomial, verbose = TRUE)
+```
+
+*Interpretation* : 
+
+- The fractional polynomial analysis indicated that both years working and physical activity did not require higher‑order transformations, as the linear specification provided the best fit.
+- Thus, modeling these variables as linear predictors in the logistic regression is appropriate.
+
+### Independence
+
+Based on study design, we assume independence of observations.
+
+*Each participant in this study contributed only one record, and data were collected at a single time point. There were no repeated measures or clustering, so the observations can be considered independent.*
+
+### Absence of multicollinearity
+
+-   Correlation matrix
+-   Estimate standard errors
+-   Variance Inflation Factor (VIF)
+
+#### Check correlation between variables
+
+##### Correlation matrix (years working and physical activity)
+
+```{r}
+library(dplyr)
+
+cor_matrix <- depression_data %>%
+  dplyr::select(years_working, phys_activity) %>%
+  cor(use = "complete.obs")
+
+cor_matrix
+
+```
+
+*Interpretation* : 
+
+- The correlation between years of working and physical activity score is very weak and negative (r = –0.014), indicating virtually no linear relationship between the two variables. 
+- This suggests that multicollinearity is unlikely to be a concern when including both predictors in the same regression model.
+
+##### Visualize correlation matrix
+
+```{r}
+library(corrplot)
+
+corrplot(cor_matrix, method = "number", type = "upper",
+         col = colorRampPalette(c("darkred", "white", "darkblue"))(200),
+         tl.col = "black", tl.srt = 45, number.cex = 0.8)
+
+```
+
+*Interpretation* : 
+
+- The correlation matrix and plot confirm that there is no significant correlation between years working and physical activity (r = −0.014). 
+- This suggests that these variables do not correlate each other in the analysis of depression.
+
+#### Estimate standard errors
+
+```{r}
+##| label: standard-errors
+##| include: true
+
+# Show only estimates and standard errors for Model 2
+
+tidy(mod2, exponentiate = TRUE) %>%
+  dplyr:: select(term, estimate, std.error)
+
+```
+
+*Interpretation* : All predictors were statistically significant, with reasonably small standard errors, indicating precise estimates. There were no signs of inflated standard errors that would suggest multicollinearity issues.
+
+#### Variance Inflation Factor (VIF)
+
+```{r}
+#| label: vif-calculation
+#| include: true
+
+library(car)
+
+vif_values <- vif(mod2)
+
+# Convert to data frame for better display
+vif_df <- data.frame(
+  Variable = names(vif_values),
+  VIF = round(vif_values, 2)
+)
+
+vif_df
+```
+
+*Interpretation* :
+
+-   Variance Inflation Factor (VIF) diagnostics indicated no collinearity concerns for years of working (VIF = 1.03) and physical activity (VIF = 1.53), both well below the conventional threshold of 2.
+-   In contrast, obesity (VIF ≈ 3.96) and the physical activity × obesity interaction (VIF ≈ 4.44) showed elevated values.
+-   This reflects the inherent correlation between interaction terms and their main effects. While such inflation is expected in models including interactions, it suggests caution in interpreting individual coefficients.
+-   Nonetheless, the overall model remains valid and interpretable.
+
+## Assess Goodness-of-fit
+
+### Hosmer-Lemeshow test
+
+```{r}
+#| label: hosmer-lemeshow-test
+#| include: true
+
+library(ResourceSelection)
+
+# Recode outcome as 0/1 numeric
+depression_num <- ifelse(depression_data$depression == "depressed", 1, 0)
+
+# Run Hosmer–Lemeshow test
+hoslem.test(depression_num, fitted(mod2), g = 10)
+
+```
+
+*Interpretation* : The Hosmer–Lemeshow test was highly significant (p \< 0.001), indicating evidence of poor fit. This suggests that the logistic regression model’s predicted probabilities do not align well with the observed outcomes.
+
+### Classification table
+
+Predict classes based on a 0.5 threshold and create confusion matrix to calculate:
+
+-   Accuracy
+-   Sensitivity
+-   Specificity
+
+```{r}
+#| label: classification-table
+#| include: true
+
+library(caret)
+
+# Get predicted probabilities
+final.m.prob <- augment(mod2, type.predict = "response") %>%
+  mutate(pred.class = ifelse(.fitted >= 0.5, "yes", "no"))
+
+# Confusion matrix
+confusionMatrix(as.factor(final.m.prob$pred.class),
+                as.factor(depression_data$depression),
+                positive = "yes")
+```
+
+*Interpretation* :
+
+-   The logistic regression model achieved an overall accuracy of 80.5% (95% CI: 74, 86).
+-   Specificity was high (94.5%), but sensitivity was modest (42.6%), indicating the model was better at correctly identifying non-depressed individuals than depressed ones.
+-   Positive and negative predictive values were 74% and 82%, respectively.
+-   The Kappa statistic (0.43) indicated moderate agreement beyond chance. However, McNemar’s test was significant (p \< 0.001), suggesting some systematic misclassification, mainly due to under-detection of depressed cases.
+-   Overall, the model performs well in distinguishing non-depressed individuals, but sensitivity limitations highlight caution in clinical application.
+
+### ROC Curve
+
+```{r}
+library(pROC)
+
+# Build ROC object
+roc_obj <- roc(depression_data$depression, final.m.prob$.fitted)
+
+# Plot ROC curve
+plot(roc_obj, col = "dodgerblue4", lwd = 2)
+
+# Add AUC text to the plot
+auc_value <- auc(roc_obj)
+text(x = 0, y = 0.2, labels = paste("AUC =", round(auc_value, 3)), col = "firebrick", cex = 1)
+```
+
+*Interpretation*: The model can distinguish between patients with and without diabetes complications approximately 77.4% of the time (AUC = 0.774).
+
+## Check for confounding
+
+### Assess confounding by examining percent change in OR
+
+```{r}
+models <- list(
+  pa = mlog_pa,
+  pa_ob = glm(depression ~ phys_activity + obesity, 
+               data = depression_data, 
+               family = binomial),
+  pa_ob_yw = mlog_full
+)
+
+confounding <- map_df(models, ~ tidy(.x, exponentiate = TRUE), .id = "model") %>%
+  filter(term != "(Intercept)") %>%
+  filter(term == "phys_activity")   # fix typo here
+
+# Extract unadjusted OR for phys_activity
+or_unadj <- confounding %>%
+  filter(model == "pa") %>%         # use "pa", not "phys_activity"
+  pull(estimate)
+
+# Add percent change column
+confounding <- confounding %>%
+  mutate(percent_change = round((estimate - or_unadj) / or_unadj * 100, 1))
+
+confounding
+
+```
+
+*Interpretation* :
+
+-   The adjusted odds ratios for physical activity changed by less than 10% after sequentially adjusting for obesity and years of working.
+-   This minimal change suggests that neither variable acts as a significant confounder in the relationship between physical activity and depression.
+
+### Check the association of each variable with the outcome (depression)
+
+```{r}
+library(purrr)
+
+slr.pa.ob.yw <- depression_data %>%
+  dplyr::select(phys_activity, obesity, years_working) %>%
+  imap(~ glm(depression ~ .x, data = depression_data, family = binomial) %>%
+         tidy(exponentiate = TRUE) %>%
+         mutate(model = .y)) %>%   # .y is the column name
+  bind_rows()
+
+# Display results without intercepts
+slr.pa.ob.yw %>%
+  filter(term != "(Intercept)") %>%
+  dplyr::select(model, everything())
+
+```
+
+*Interpretation* :
+
+-   Physical activity and years of working were statistically significant and clinically relevant predictors of depression, each contributing independently to risk.
+-   Obesity showed a positive association but was not statistically significant in the univariable model.
+-   These results support including physical activity and years of working in the final model, while obesity may warrant further evaluation in multivariable or interaction models.
+
+## Diagnostic plot
+
+```{r}
+par(mfrow = c(2, 2), mar = c(4.5, 4.5, 3, 2), cex = 0.8)
+plot(mod2, col = "dodgerblue4", pch = 19, cex = 0.6)
+```
+
+*Interpretation* :
+
+-   The diagnostic plots for Model 2 (interaction) show no major violations of regression assumptions.
+-   Residuals are generally well-behaved, variance appears roughly constant, and only a few observations (e.g., points 140, 18, 200) show moderate influence.
+-   Overall, the model appears statistically sound and well-fitted to the data.
+
+## Perform influential analysis
+
+### List of influential observations
+
+```{r}
+#| label: list-influential-observations
+#| include: true
+
+infl <- influence.measures(mod2)
+infl.val <- data.frame(infl$infmat)
+names(infl.val)
+```
+
+### Cook's distance
+
+Cut off for Cook's distance: 4/n
+
+#### Cook's distance influential observations
+
+```{r}
+#| label: cooks-distance-influential-observations
+#| include: true
+
+
+cutoff.cook.d <- 4/nrow(depression_data)
+infl.val |>
+  filter(cook.d > cutoff.cook.d)
+```
+
+#### Cook's distance plot
+
+Cutpoint for Cook's distance: 4/n
+
+```{r}
+#| label: cooks-distance-plot
+#| include: true
+
+cutoff <- 4 / nrow(depression_data)
+plot(mod2, which=4, cook.levels=cutoff)
+```
+
+*Interpretation* :
+
+-   The Cook’s distance plot identified observations 18, 140, and 200 as potentially influential, with elevated Cook’s distances relative to the rest of the dataset.
+-   While these points may affect model estimates, none exceed the conventional threshold for high influence, suggesting that the model is generally robust.
+
+### DFBETAS
+
+Cut off for DFBETAS: 2/sqrt(n)
+
+```{r}
+#| label: dfbetas-plot
+#| include: true
+#| fig-cap: "DFBETAS for Model Coefficients"
+#| fig-width: 7
+#| fig-height: 5
+
+# Compute DFBETAS
+dfb <- dfbetas(mod2)
+
+# Color palette for coefficients
+colors <- c("dodgerblue4", "firebrick", "darkorchid", "seagreen", "goldenrod")
+
+# Plot DFBETAS
+matplot(dfb, type = "h", lty = 1, col = colors,
+        main = "DFBETAS for Model Coefficients",
+        ylab = "DFBETAS", xlab = "Observation",
+        lwd = 2)
+
+# Threshold lines based on rule of thumb: 2/sqrt(n)
+cutoff <- 2 / sqrt(nrow(dfb))
+abline(h = c(-cutoff, cutoff), col = "red", lty = 2, lwd = 2)
+
+# Legend (placed neatly at top right, vertical layout)
+legend("topright", inset = c(-0.25, 0), xpd = TRUE,
+       legend = c("(Intercept)", "Years Working", "Physical Activity", 
+                  "Obesity: Obese", "Interaction: Phys x Obesity"),
+       col = colors, lty = 1, lwd = 2, bty = "n", cex = 0.8, horiz = FALSE)
+
+
+
+```
+
+*Interpretation* :
+
+-   Each colored line represents how much a single observation affects a specific regression coefficient.
+-   Most lines are short and stay within the red dashed lines (±0.1), indicating that most observations have minimal influence.
+-   A few spikes exceed ±0.1 — these are potentially influential observations that may meaningfully affect specific model coefficients.
+
+### Leverage points
+
+Cut off for leverage: (2p + 2)/n
+
+```{r}
+#| label: leverage-plot
+#| include: true
+#| fig-cap: "Leverage Values for Observations"
+
+leverage_values <- hatvalues(mod2)
+
+# Basic leverage plot with enhancements
+plot(leverage_values, 
+     main = "Leverage Values",
+     ylab = "Leverage", xlab = "Observation",
+     pch = 19, col = "dodgerblue4", cex = 0.7)
+
+# Add horizontal cutoff line
+cutoff <- (2 * (length(coef(mod2)) + 1)) / nrow(depression_data)
+abline(h = cutoff, col = "red", lty = 2, lwd = 2)
+
+# Annotate influential points
+influential <- which(leverage_values > cutoff)
+points(influential, leverage_values[influential], col = "firebrick", pch = 19)
+text(influential, leverage_values[influential], labels = influential, pos = 3, cex = 0.6)
+
+# Label with observation numbers
+text(influential, leverage_values[influential],
+     labels = influential, pos = 3, cex = 0.7, col = "darkred")
+
+```
+
+*Interpretation* :
+
+-   Most observations fall below the cutoff line, indicating low leverage and minimal influence on the model.
+-   However, one observation exceeds the threshold, suggesting it may disproportionately affect the regression estimates.
+-   This point should be reviewed further to assess its impact on model stability and validity.
+
+### Standardized residuals
+
+cut off for standardized residuals: \|2\|
+
+```{r}
+#| label: standardized-residuals-plot
+#| include: true
+#| fig-cap: "Standardized Residuals for Final Model"
+
+# Standardized residuals
+std_resid <- rstandard(mod2)
+
+# Plot residuals
+plot(std_resid,
+     main = "Standardized Residuals",
+     ylab = "Standardized Residuals", xlab = "Observation",
+     pch = 19, col = "dodgerblue4", cex = 0.7)
+
+# Add cutoff lines
+abline(h = c(-2, 2), col = "red", lty = 2, lwd = 2)
+
+# Identify influential observations (outside ±2)
+infl_obs <- which(abs(std_resid) > 2)
+
+# Add labels for those points
+text(x = infl_obs, y = std_resid[infl_obs],
+     labels = infl_obs, pos = 3, cex = 0.7, col = "darkred")
+
+```
+
+*Interpretation* :
+
+-   The standardized residuals plot shows that most observations fall within ±2, indicating a good model fit.
+-   However, a few points exceed this range, suggesting potential outliers that may warrant further investigation to assess their influence on the model.
+
+## Identify the influential observations
+
+Cutoffs:
+
+-   Cook's distance: 4/n
+-   Standardized residuals: \|2\|
+-   Leverage: (2p + 2)/n
+
+```{r}
+#| label: influential-observations-summary
+#| include: true
+#| tab-cap: "Influential Observations Summary"
+
+library (DT)
+
+# Create diagnostic datashet (predictions and residuals)
+depression_pred.res <- augment(mod2, depression_data)
+
+# Define thresholds
+n_obs <- nrow(depression_data)
+p_preds <- length(coef(mod2))
+cooks_cutoff <- 4 / n_obs
+leverage_cutoff <- (2 * p_preds + 2) / n_obs
+
+# Identify influential observations
+influential_obs <- depression_pred.res %>%
+  filter(.cooksd > cooks_cutoff | abs(.std.resid) > 2 | .hat > leverage_cutoff)
+
+# Print count
+nrow(influential_obs)
+
+# Display influential observations summary
+datatable(influential_obs, 
+          caption = "Table 14: Influential Observations Summary")
+```
+
+## Remove influential observations and refit the model
+
+```{r}
+#| label: refit-model-without-influential
+#| include: true
+
+# Remove influential observations based on Cook's distance, residuals, and leverage
+clean_data <- depression_pred.res %>%
+  filter(.cooksd <= cooks_cutoff & abs(.std.resid) <= 2 & .hat <= leverage_cutoff)
+
+# Refit the logistic regression model on cleaned data
+final_model_clean <- glm(depression ~ years_working + phys_activity + obesity + phys_activity:obesity,
+                         data = clean_data, family = binomial)
+
+# Create regression summary table with correct labels
+tbl <- tbl_regression(
+  final_model_clean,
+  intercept = TRUE,
+  exponentiate = TRUE,
+  label = list(
+    years_working ~ "Years Working",
+    phys_activity ~ "Physical Activity",
+    obesity ~ "Obesity",
+    `phys_activity:obesity` ~ "Interaction: Physical Activity × Obesity"
+  )
+) %>%
+  bold_p(t = 0.05) %>%
+  bold_labels() %>%
+  add_glance_source_note(include = c(AIC, BIC, logLik)) %>% 
+  modify_header(estimate ~ "**Adjusted OR**")
+
+# Convert to gt and style
+tbl %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 15: Final Model Results after Removing Influential Observations"
+  )
+```
+
+## Compare results before and after removing influential observations
+
+### Model performance comparison
+
+-   Model A (before removing influential observations)
+
+```{r}
+#| label: compare-model-performance
+#| include: true
+
+library(performance)
+
+model_performance(mod2)
+```
+
+-   Model B (after removing influential observations)
+
+```{r}
+#| label: compare-model-performance-clean
+#| include: true
+
+model_performance(final_model_clean)
+```
+
+### Model coefficients comparison
+
+```{r}
+#| label: compare-model-coefficients
+#| include: true
+
+compare_performance(mod2, final_model_clean)
+```
+
+*Interpretation* :
+
+-   The cleaned model outperformed the original model across multiple evaluation metrics.
+-   It had lower AIC, BIC, and log-loss values, indicating improved model fit.
+-   It also showed higher Tjur’s R² (0.352 vs. 0.229) and prediction accuracy (PCP = 0.766 vs. 0.696), reflecting stronger explanatory power and better classification performance.
+-   These improvements suggest that removing influential observations enhanced the model’s overall robustness and predictive accuracy.
+
+### Compare coefficients before and after removing influential observations
+
+```{r}
+#| label: compare-coefficients-before-after
+#| include: true
+
+coef_comparison <- tidy(mod2) %>%
+  dplyr:: select(term, estimate) %>%
+  rename(estimate_prelim = estimate) %>%
+  left_join(
+    tidy(final_model_clean) %>%
+      dplyr :: select(term, estimate) %>%
+      rename(estimate_refit = estimate),
+    by = "term"
+  ) %>%
+  mutate(
+    change_in_estimate = estimate_refit - estimate_prelim,
+    percent_change = (change_in_estimate / estimate_prelim) * 100
+  )
+
+coef_comparison
+
+```
+
+*Interpretation* :
+
+-   After removing influential observations, most model estimates changed substantially.
+-   The effect of years working became stronger, and the impact of physical activity and obesity increased.
+-   The interaction between physical activity and obesity also showed a larger effect.
+-   These shifts suggest that the original model was sensitive to specific data points, and the cleaned model yields more stable and interpretable estimates.
+
+### Compare model diagnostics before and after removing influential observations
+
+```{r}
+#| label: compare-model-diagnostics
+#| include: true
+#| fig-cap: "Diagnostic Plots Before and After Removing Influential Observations"
+
+# Set up 2 columns × 4 rows layout
+par(mfrow = c(2, 4), cex = 0.5)
+
+# Residuals vs Fitted
+plot(mod2, which = 1, main = "Prelim Model")
+plot(final_model_clean, which = 1, main = "Refit Model")
+
+# Q-Q Plot
+plot(mod2, which = 2, main = "Prelim Mode")
+plot(final_model_clean, which = 2, main = "Refit Model")
+
+# Scale-Location
+plot(mod2, which = 3, main = "Prelim Mode")
+plot(final_model_clean, which = 3, main = "Refit Model")
+
+# Cook's Distance
+plot(mod2, which = 4, main = "Prelim Mode")
+plot(final_model_clean, which = 4, main = "Refit Model")
+
+# Residuals vs Leverage
+plot(mod2, which = 5)
+plot(final_model_clean, which = 5)
+
+# Cook's distance vs Leverage
+plot(mod2, which = 6)
+plot(final_model_clean, which = 6)
+
+```
+
+*Interpretation* : The "Refit Model" is a significant improvement over the "Prelim Model."
+
+-   **Linearity (Residuals vs Fitted)**: The original model displayed widely scattered residuals (–6 to +4) with distinct striations, though the smoothing line was relatively stable. In the refit model, the striation pattern remains (typical for discrete outcomes), but residuals are more contained (–3 to +3) and the smoothing line remains centered at zero, suggesting tighter model fit.
+
+-   **Normality (Q-Q Residuals)**: The initial Q-Q plot showed a generally good fit but flagged extreme outliers (e.g., Obs 21, 188, 140). Post-refit, residuals align more closely with the theoretical line, and tail deviations are mitigated, supporting the error distribution assumption.
+
+-   **Homoscedasticity (Scale-Location)**: The original plot showed a V-shaped pattern with residuals reaching 2.5, indicating non-constant variance. In the refit model, the V-shape persists but residual spread is reduced (max ≈ 1.5), suggesting improved error stability.
+
+-   **Influential Observations (Cook’s Distance)**: The prelim model flagged Obs 143 and 228 with Cook’s distances near 0.12. In the refit model, the maximum Cook’s distance drops to ≈ 0.06, indicating more stable coefficients and reduced undue influence from outliers.
+
+-   **Residuals vs Leverage**: The plot shows that most observations have low leverage and standardized residuals close to zero, indicating minimal influence on the model. A few points (e.g., Obs 233, 243) stand out with higher leverage and moderate residuals, suggesting they may exert disproportionate influence on the fitted values. However, the overall pattern remains stable, and the smoothing line does not show concerning curvature, supporting model robustness.
+
+-   **Cook’s Distance vs Leverage**: This plot confirms that influential observations tend to have both high leverage and large residuals. Points such as 233 and 243 approach the conventional Cook’s distance thresholds (e.g., 0.5–1), but none exceed critical influence levels. The distribution is well-contained, and the model appears resilient to individual data points.
+
+#### Residuals analysis (pearson residuals) after removing influential observations
+
+```{r}
+#| label: residuals-plot
+#| include: true
+
+# Visualize Pearson residuals
+plot(residuals(final_model_clean, type = "pearson"))
+     abline(h = 0, col = "red", lty = 2)
+```
+
+*Interpretation* : The plot showed a random scatter around zero, suggesting no major issues with model fit or specification.
+
+## Calibration plot after removing influential observations
+
+```{r}
+#| label: calibration-plot
+#| include: true
+#| fig-cap: "Calibration Plot for Final Model"
+
+# Get predicted probabilities
+car.m.prob <- augment(final_model_clean, type.predict = "response")
+
+# Create calibration plot
+ggplot(car.m.prob, aes(x = .fitted, y = .resid + .fitted)) +
+  geom_point(alpha = 0.6, color = "dodgerblue4") +
+  geom_smooth(method = "loess", color = "firebrick", se = FALSE) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
+  labs(title = "Calibration Plot for Final Model",
+       x = "Predicted Probability",
+       y = "Observed Proportion") +
+  theme_minimal()
+```
+
+*Interpretation* : This plot checks how well the model’s predictions match real outcomes. The dashed line shows perfect prediction. The red line shows what actually happened. Since the red line is close to the dashed line, the model’s predictions are mostly accurate. But at higher risk levels, the model slightly overestimates the chance of depression.
+
+
+
+# Part E: Results Presentation and Interpretation
+
+## Final regression table
+
+```{r}
+#| label: final-regression-table
+#| include: true
+#| tab-cap: "Final Regression Model Results after Removing Influential Observations"
+
+# Compute Tjur's R²
+r2_tjur <- performance::r2_tjur(final_model_clean)
+r2_text <- paste0("Tjur's R² = ", round(r2_tjur, 3))
+
+
+# Build the table
+tbl_final <- tbl_regression(
+  final_model_clean,
+  intercept = TRUE,
+  exponentiate = TRUE,
+  label = list(
+    years_working ~ "Years Working (years)",
+    phys_activity ~ "Physical Activity (score)",
+    obesity ~ "Obesity",
+    `phys_activity:obesity` ~ "Interaction: Physical Activity × Obesity"
+  )
+) %>%
+  bold_p(t = 0.05) %>%
+  bold_labels() %>%
+  add_glance_source_note(include = c(AIC, BIC, logLik)) %>%
+  modify_header(estimate ~ "**Adjusted OR**") %>%
+  modify_source_note(
+    source_note = paste0("Model fit statistics: AIC, BIC, log-likelihood. ", r2_text)
+  )
+
+# Render as gt table
+tbl_final %>%
+  as_gt() %>%
+  tab_header(
+    title = "Table 16: Final Regression Model Results after Removing Influential Observations"
+  )
+```
+
+## Final model equation
+
+The final logistic regression model predicting depression status is given by the equation:
+
+$$\text{Odds of Depression} = 0.14 \times 1.08^{(\text{Years})} \times 0.71^{(\text{Activity})} \times 19^{(\text{Obese})} \times 0.57^{(\text{Interaction})}$$
+
+Where: 
+
+- Years = Number of years working 
+- Activity = Physical activity score 
+- Obese = 1 if obese, 0 if not obese 
+- Interaction = Physical activity × Obesity interaction term
+
+## Interpretation of Final Model Results
+
+### Main Effects and Interaction Terms
+
+The final model identifies several statistically significant predictors of depression status:
+
+- Years Working: Each additional year of employment was associated with an 8% increase in the odds of depression (Adjusted OR = 1.08, 95% CI: [1.04, 1.13], p < .001), suggesting that longer work duration may be linked to cumulative stress or burnout.
+
+- Physical Activity: Higher physical activity was protective, reducing the odds of depression by 29% among non‑obese individuals (Adjusted OR = 0.71, 95% CI: [0.56, 0.89], p = .004).
+
+- Obesity: Obese individuals had dramatically higher odds of depression compared to non‑obese peers (Adjusted OR = 19.0, 95% CI: [3.48, 131], p = .001), indicating a strong association between obesity and mental health burden.
+
+- Interaction (Physical Activity × Obesity): The interaction term (OR = 0.57, 95% CI: [0.35, 0.87], p = .013) indicates that physical activity is even more protective among obese individuals. The combined effect yields an OR of approximately 0.40, corresponding to a 60% reduction in odds of depression per unit increase in physical activity among obese individuals. This suggests that physical activity may buffer the elevated risk of depression associated with obesity.
+
+### Model Comparison
+
+Compared to the preliminary model without interaction terms, the final model shows substantial improvement:
+
+-   **Fit Statistics**: AIC dropped from 198.4 to 150.1, and BIC from 214.9 to 166.3, indicating better model parsimony and explanatory power.
+-   **Predictive Accuracy**: PCP increased from 0.696 to 0.766, and Tjur’s R² rose from 0.229 to 0.352, reflecting stronger discrimination between depressed and non-depressed cases.
+-   **Conclusion**: Including the interaction term significantly improved model fit and interpretability, capturing nuanced relationships between physical activity and obesity.
+
+### Practical Significance
+
+The findings have clear implications:
+
+-   **Workplace Mental Health**: The positive association between years working and depression highlights the need for mental health support in long-term employment settings.
+-   **Targeted Interventions**: Physical activity emerges as a modifiable protective factor, especially for obese individuals. Tailored exercise programs could be a strategic intervention to reduce depression risk in this subgroup.
+-   **Clinical Screening**: The strong effect of obesity on depression odds suggests that clinicians should routinely screen for depressive symptoms in obese patients.
+
+### Model Assumptions and Diagnostics
+
+Model checking revealed:
+
+-   **Linearity**: Residuals vs Fitted plots showed improved containment and centering in the refit model, suggesting a better-specified relationship between predictors and log-odds.
+-   **Normality**: Q-Q plots indicated that extreme residuals were mitigated post-refit, improving alignment with theoretical quantiles.
+-   **Homoscedasticity**: Scale-Location plots showed reduced residual spread (from 2.5 to 1.5), indicating more stable variance across fitted values.
+-   **Influential Observations**: Cook’s distance dropped from \~0.12 to \~0.06 after removing influential points, confirming that the final model is more robust and less sensitive to outliers.
+
+
+## Prediction
+
+### Fitted probabilities for existing patients
+
+```{r}
+#| label: fitted-probabilities-existing-patients
+#| include: true
+# Fitted value
+prob_depression <- augment(final_model_clean,
+        type.predict = 'response',
+        type.residuals = 'pearson')
+prob_depression %>%
+  datatable()
+```
+
+### Predicted probabilities for new patients
+
+```{r}
+#| label: predicted-probabilities-new-patients
+#| include: true
+
+# Create new data for prediction
+new_depression <- expand.grid(
+  years_working = c(0, 10, 20, 30, 40),        # range of years working
+  phys_activity = c(0, 2.5, 5, 7.5, 10),       # range of physical activity
+  obesity = c("not obese", "obese")            # obesity categories
+)
+
+# Add log-odds and predicted probabilities
+new_depression$predicted_odds <- predict(final_model_clean,
+                                           newdata = new_depression,
+                                           type = "link")
+
+new_depression$predicted_prob <- predict(final_model_clean,
+                                       newdata = new_depression,
+                                       type = "response")
+
+# Create table
+new_depression %>%
+  gt() %>%
+  tab_header(
+    title = "Table 17: Predicted Odds and Probabilities for New Patients",
+  ) %>%
+  fmt_number(
+    columns = vars(predicted_odds, predicted_prob),
+    decimals = 3
+  )
+```
+### Prediction plot with confidence intervals (Interaction plot)
+
+```{r}
+#| label: prediction-plot-with-ci
+#| include: true
+#| fig-cap: "Predicted Probability of Depression by Physical Activity and Obesity Status with 95% Confidence Intervals"
+
+# Get predictions with standard errors
+pred <- predict(final_model_clean, newdata = new_depression, type = "link", se.fit = TRUE)
+
+# Build dataframe with CI on probability scale
+predicted <- new_depression %>%
+  mutate(
+    fit_link = pred$fit,
+    se_link  = pred$se.fit,
+    lower_link = fit_link - 1.96 * se_link,
+    upper_link = fit_link + 1.96 * se_link,
+    .fitted = plogis(fit_link),
+    .lower  = plogis(lower_link),
+    .upper  = plogis(upper_link)
+  )
+
+# Plot with ribbons
+ggplot(predicted, aes(x = phys_activity, y = .fitted, color = obesity, fill = obesity)) +
+  geom_ribbon(aes(ymin = .lower, ymax = .upper), alpha = 0.2, color = NA) +
+  geom_line(linewidth = 1) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Predicted Probability of Depression by Physical Activity and Obesity Status",
+    subtitle = "Model Predictions with 95% Confidence Intervals",
+    y = "Predicted Probability of Depression",
+    x = "Physical Activity Score (0–10)",
+    color = "Obesity Status",
+    fill = "Obesity Status"
+  ) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+
+```
+*Interpretation* :
+
+-   As physical activity increases, the chance of being depressed goes down for both obese and non-obese individuals. The drop is steeper for obese people, meaning physical activity helps them even more. At high activity levels, both groups have similarly low depression risk.
+-   This suggests that encouraging physical activity is especially important for obese individuals to reduce depression risk.
+
+### Heatmap of predicted probabilities
+
+```{r}
+#| label: heatmap-predicted-probabilities
+#| include: true
+#| fig-cap: "Heatmap of Predicted Probability of Depression by Physical Activity and Years Working"
+
+# 1. Create a discrete prediction grid for representative values
+heatmap_data <- expand.grid(
+  years_working = c(0, 10, 20, 30, 40),
+  phys_activity = c(0, 2.5, 5, 7.5, 10),
+  obesity = c("not obese", "obese") 
+)
+
+# 2. Generate predictions from your fitted model
+predicted_heatmap <- augment(
+  final_model_clean,
+  newdata = heatmap_data,
+  type.predict = "response",   # predicted probabilities
+  se_fit = TRUE
+)
+
+# 3. Plot as a heatmap (probability blocks)
+ggplot(predicted_heatmap, aes(x = phys_activity, y = years_working, fill = .fitted)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(.fitted, 2)), vjust = -0.5, size = 3, check_overlap = TRUE) +
+  facet_wrap(~ obesity) +
+  scale_fill_gradient(low = "skyblue", high = "firebrick", name = "Predicted Probability") +
+  labs(
+    title = "Predicted Probability of Depression",
+    subtitle = "Across Physical Activity, Years Working, and Obesity Status",
+    x = "Physical Activity Score (0–10)",
+    y = "Years Working"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    plot.title = element_text(face = "bold"),
+    legend.position = "right"
+  )
+
+```
+
+*Interpretation* : People who are obese and have worked longer tend to have a higher chance of depression, especially if they are not physically active. More physical activity lowers the risk of depression for everyone, but the benefit is even greater for obese individuals.
+
+
+# Conclusion
+
+The final model offers a statistically sound and practically meaningful framework for understanding depression risk. By addressing influential observations and incorporating interaction effects, it achieves better fit, clearer interpretation, and stronger predictive performance. These results support targeted mental health strategies that consider both behavioral and physiological risk factors.
