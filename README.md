@@ -4,10 +4,10 @@
 Group 4: Munir (23202537), Farihah (23202679), Sanggary (23202894), Khairunnisa (23202532)
 
 ###  Contents
- `Group 4 MLR`  Multiple linear regression analysis and results
- `Group 4 MLogR`  Multiple logistic regression analysis and results
- `simulated_depression_data`  Simulated dataset for depression score modeling 
- `simulated_qol_data` |Simulated dataset for quality of life analysis 
+ - `Group 4 MLR`  Multiple linear regression analysis and results
+ - `Group 4 MLogR`  Multiple logistic regression analysis and results
+ - `simulated_depression_data`  Simulated dataset for depression score modeling 
+ - `simulated_qol_data` |Simulated dataset for quality of life analysis 
 
 ###  Methods Used
 - Multiple Linear Regression (MLR)
