@@ -45,14 +45,14 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 Layout within this repository:
 
 - `Multiple-Linear-Regression/` – multiple linear regression (MLR) component  
-  - `Group4_MLR.qmd` (or `Group4_MLR.Rmd`) – MLR analysis document  
+  - `Group4_MLR.qmd`  – MLR analysis document  
   - `Group4_MLR.html` – rendered HTML report for MLR  
   - `data/` – simulated QoL dataset and generation script  
     - `simulated_qol_data.csv`  
     - `data_generation_qol.R`  
 
 - `Multiple-Logistic-Regression/` – multiple logistic regression (MLogR) component  
-  - `Group4_MLogR.qmd` (or `Group4_MLogR.Rmd`) – MLogR analysis document  
+  - `Group4_MLogR.qmd`  – MLogR analysis document  
   - `Group4_MLogR.html` – rendered HTML report for MLogR  
   - `data/` – simulated depression dataset and generation script  
     - `simulated_depression_data.csv`  
