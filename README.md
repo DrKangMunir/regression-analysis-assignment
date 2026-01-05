@@ -20,6 +20,7 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 - [List of Analyses](#list-of-analyses)
 - [Results](#results)
 - [Contributing](#contributing)
+- [Disclaimer](#disclaimer)
 - [License](#license)
 
 ---
@@ -246,6 +247,19 @@ Key learning outcomes:
 This repository is part of a course assignment; external contributions are not accepted
 
 For corrections or suggestions, please contact the group members or instructor with the relevant file name and section.
+
+---
+
+## Disclaimer
+
+This repository contains academic work prepared for the GDT500 Multivariable Analysis course.  
+All datasets are **simulated** and do not contain real participant data.  
+
+Coding support and data generation were assisted by **Microsoft Copilot**, an AI companion.  
+Copilot was used to streamline code structuring, automate data simulation, and refine documentation.  
+All analytical decisions, interpretations, and conclusions remain the responsibility of the authors.  
+
+The outputs are intended solely for **educational and demonstration purposes** and should not be used for clinical or policy decision‑making.
 
 ---
 
