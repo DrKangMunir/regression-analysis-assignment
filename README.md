@@ -4,7 +4,7 @@
 ![R ≥ 4.0](https://img.shields.io/badge/R-≥%204.0-blue.svg)
 ![Quarto ≥ 1.4](https://img.shields.io/badge/Quarto-≥%201.4-orange.svg)
 
-Reproducible multiple **logistic** and multiple **linear** regression analyses using simulated public health data for the GDT500 Multivariable Analysis course (DrPH, Universiti Sains Malaysia).
+Reproducible multiple **logistic** and multiple **linear** regression analyses using simulated public health data for the GDT500 Multivariable Analysis course (DrPH, Universiti Sains Malaysia).[file:2][file:3]
 
 ---
 
@@ -17,6 +17,7 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 - [Installation](#installation)
 - [Usage](#usage)
 - [Data](#data)
+- [List of Analyses](#list-of-analyses)
 - [Results](#results)
 - [Contributing](#contributing)
 - [License](#license)
@@ -25,16 +26,17 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 
 ## Overview
 
-- Examines how work-related and lifestyle factors relate to **quality of life (continuous)** and **depression (binary)** outcomes using multiple linear and multiple logistic regression on simulated data.  
-- Uses **R**, **Quarto**, and **tidyverse-based workflows** to demonstrate data simulation, EDA, model building, interaction terms, diagnostics, and interpretation.  
+- Examines how work-related and lifestyle factors relate to **quality of life (continuous)** and **depression (binary)** outcomes using multiple linear and multiple logistic regression on simulated data.
+- Uses **R**, **Quarto**, and **tidyverse-based workflows** to demonstrate data simulation, EDA, model building, interaction terms, diagnostics, and interpretation.
 - Status: Stable teaching example for the GDT500 Regression Analysis group assignment (Group 4).
 
 ---
 
 ## Contributors
-- DR. NAZIRUL MUNIR BIN ABU HASSAN (23202537)
-- DR. NURFARIHAH ZULKIFLI (23202679)
-- DR. KHAIRUNNISA BINTI ARIFFIN (23202532)
+
+- DR. NAZIRUL MUNIR BIN ABU HASSAN (23202537)  
+- DR. NURFARIHAH ZULKIFLI (23202679)  
+- DR. KHAIRUNNISA BINTI ARIFFIN (23202532)  
 - DR. SANGGARY MARIMUTHU (23202894)
 
 ---
@@ -57,11 +59,12 @@ Layout within this repository:
     - `simulated_depression_data.csv`  
     - `data_generation_depression.R`  
 
-- `README.md` – this overview file  
+- `README.md` – this overview file
 
 ---
 
 ## Published Analysis in Posit-Connect
+
 - [Linear Regression Analysis](https://posit-connect.kk.usm.my/content/2987b23e-f1f1-47ef-a116-90260349bf05)  
 - [Logistic Regression Analysis](https://posit-connect.kk.usm.my/content/b9144dca-f26c-4d55-91ca-6085d73494db)
  
@@ -79,7 +82,7 @@ Layout within this repository:
   `broom`, `broom.helpers`, `performance`, `car`, `lmtest`, `mfp`,  
   `gtsummary`, `gt`, `knitr`,  
   `summarytools`, `labelled`, `DT`,  
-  `caret`, `ResourceSelection`, `pROC`  
+  `caret`, `ResourceSelection`, `pROC`
 
 ### Setup
 
@@ -114,7 +117,6 @@ cd Multiple-Logistic-Regression
 
 # Quarto
 quarto render Group4_MLogR.qmd
-
 ```
 
 This generates `Group4_MLogR.html` with the simulated depression dataset, EDA, multiple logistic regression models, diagnostics, and interpretation.
@@ -126,7 +128,6 @@ cd Multiple-Linear-Regression
 
 # Quarto
 quarto render Group4_MLR.qmd
-
 ```
 
 This generates `Group4_MLR.html` with the simulated QoL dataset, EDA, multiple linear regression models, diagnostics, and interpretation.
@@ -140,40 +141,109 @@ All datasets are **fully simulated** for educational purposes and contain no rea
 ### Multiple Logistic Regression
 
 - Source: `Multiple-Logistic-Regression/data/simulated_depression_data.csv`  
-- Variables (example):  
+- Variables:  
   - `depression` – binary outcome  
   - `years_working` – continuous predictor  
-  - `phys_activity` – categorical physical activity level  
-  - `obesity` – binary obesity status  
+  - `phys_activity` – continuous predictor  
+  - `obesity` – binary obesity status
+  - `phys_activity x obesity` - interaction term between physical activity and obesity
 - Generated with fixed random seeds (`set.seed()`) in `data_generation_depression.R` or in Part A of the analysis document.
 
 ### Multiple Linear Regression
 
 - Source: `Multiple-Linear-Regression/data/simulated_qol_data.csv`  
-- Variables (example):  
+- Variables:  
   - `qol` – continuous quality of life score  
-  - `years_working`, `phys_activity`, `obesity`, plus interaction terms where specified  
+  - `years_working` – continuous predictor  
+  - `phys_activity` – continuous predictor
+  - `obesity` – binary obesity statu
+  - `phys_activity x obesity` - interaction term between physical activity and obesity
 - Generated with fixed seeds in `data_generation_qol.R` or in Part A of the MLR analysis document.
 
 A more detailed data dictionary can be included in each HTML report or a separate markdown file if required.
 
 ---
 
+## List of Analyses
+
+### Multiple Logistic Regression – Depression
+
+- **Part A: Dataset and variable creation**  
+  - Simulate a 200-observation dataset (depression, years of working, physical activity, obesity) with a prespecified interaction between physical activity and obesity.
+  - Recode, factor-label, and document variables for transparent analysis.
+
+- **Part B: Exploratory data analysis**  
+  - Descriptive statistics for all variables using tabular summaries.
+  - Histograms, boxplots, and bar plots (including depression by obesity) to explore distributions and group differences.
+
+- **Part C: Regression modeling**  
+  - Univariable logistic regression for each predictor with ORs and 95% CIs. 
+  - Multivariable models:  
+    - Main-effects model (years working, physical activity, obesity).  
+    - Interaction model (physical activity × obesity) with interpretation of effect modification.
+  - Model comparison using likelihood ratio tests and ANOVA for nested models.
+
+- **Part D: Model checking and diagnostics**  
+  - Assess linearity of the logit using fractional polynomials (mfp) for continuous predictors.
+  - Evaluate independence and multicollinearity (correlation matrix, standard errors, VIF).
+  - Assess goodness-of-fit (Hosmer–Lemeshow test, classification table, sensitivity/specificity, predictive values, ROC curve/AUC).
+  - Influence diagnostics: Cook’s distance, leverage, DFBETAs, standardized residuals; identification and removal of influential observations; refitting and comparing models (coefficients, diagnostics, calibration plot).
+
+- **Part E: Presentation and interpretation**  
+  - Final regression table with adjusted ORs, CIs, p-values and Tjur’s R².
+  - Final model equation, interpretation of main effects and interaction, model comparison, practical significance, and model assumptions. 
+  - Prediction section with fitted probabilities for existing and new patients, interaction plots, and probability heatmaps.
+
+### Multiple Linear Regression – Quality of Life
+
+- **Part A: Research question, data simulation, and preparation**  
+  - Research question on association between physical activity, obesity, years of working, and quality of life among adults.  
+  - Simulate QoL data with specified coefficients for main effects and interaction (physical activity × obesity), plus random error and truncation to 0–100. 
+  - Data preparation: structure checking, labeling of variables, and dataset summary.
+
+- **Part B: Exploratory data analysis**  
+  - Descriptive statistics for QoL and predictors (means, SDs, ranges, IQRs, proportions).
+  - Histograms for continuous variables; boxplots by obesity status for QoL and predictors.  
+  - Scatterplots of QoL vs predictors (including colour-coded plots by obesity to visualize interaction).
+  - Correlation matrix and correlation plots for continuous variables.
+
+- **Part C: Regression modeling**  
+  - Univariable linear regression models for years of working, physical activity, and obesity with beta estimates and 95% CIs.  
+  - Handling potential confounders by sequential model building.
+  - Multivariable models:  
+    - Model 1: main-effects-only model (years of working, physical activity, obesity).  
+    - Model 2: full model with physical activity × obesity interaction. 
+  - Model comparison based on fit statistics and change in coefficients.
+
+- **Part D: Model checking and influential analysis**  
+  - Assumption checks: linearity, normality of residuals (Q–Q plot), homoscedasticity (scale–location), and independence of residuals.  
+  - Influence diagnostics: Cook’s distance, leverage, DFBETAs; identification of influential observations. 
+  - Remedial measures: remove influential observations, refit the model, and compare estimates and diagnostics before and after removal.
+
+- **Part E: Results and prediction**  
+  - Final multivariable regression table with adjusted betas, SEs, CIs, t-statistics, and p-values. 
+  - Final model equation and interaction plot illustrating effect modification by obesity. 
+  - Narrative interpretation of main effects, interaction, model fit, practical significance, and robustness.  
+  - Prediction section with new data simulation, fitted values, and visualization of predicted QoL across predictor ranges.
+
+
+---
+
 ## Results
 
-- **Logistic regression:** Odds ratios, ROC curves, diagnostics, and interpretation in `Group4_MLogR.html`.  
-- **Linear regression:** Coefficient estimates, assumption checks, diagnostics, and interpretation in `Group4_MLR.html`.  
+- **Logistic regression:** Odds ratios, ROC curves, calibration, diagnostics, and interpretation in `Group4_MLogR.html`. 
+- **Linear regression:** Coefficient estimates, assumption checks, influence analysis, and interpretation in `Group4_MLR.html`. 
 
 Key learning outcomes:
 
-- Demonstrates reproducible regression workflows in R.  
-- Shows how to specify, fit, and interpret multiple regression models using simulated public health data.
+- Demonstrates reproducible regression workflows in R, from simulation to reporting.
+- Shows how to specify, fit, check, and interpret multiple regression models with main effects and interaction terms in public health contexts.
 
 ---
 
 ## Contributing
 
-This repository is part of a course assignment; external contributions are not accepted.  
+This repository is part of a course assignment; external contributions are not accepted
 
 For corrections or suggestions, please contact the group members or instructor with the relevant file name and section.
 
