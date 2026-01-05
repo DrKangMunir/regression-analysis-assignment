@@ -3,12 +3,16 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![R ≥ 4.0](https://img.shields.io/badge/R-≥%204.0-blue.svg)
 ![Quarto ≥ 1.4](https://img.shields.io/badge/Quarto-≥%201.4-orange.svg)
+![GitHub stars](https://img.shields.io/github/stars/DrKangMunir/regression-analysis-assignment?style=social)
+![GitHub forks](https://img.shields.io/github/forks/DrKangMunir/regression-analysis-assignment?style=social)
 
 Reproducible multiple **logistic** and multiple **linear** regression analyses using simulated public health data for the GDT500 Multivariable Analysis course (DrPH, Universiti Sains Malaysia).[file:2][file:3]
 
+
 ---
 
-## 📑 Table of Contents
+<details>
+<summary>📑 Table of Contents</summary>
 
 - [Overview](#overview)
 - [Contributors](#contributors)
@@ -22,6 +26,9 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 - [Contributing](#contributing)
 - [Disclaimer](#disclaimer)
 - [License](#license)
+- [Version History](#version-history)
+
+</details>
 
 ---
 
@@ -29,16 +36,21 @@ Reproducible multiple **logistic** and multiple **linear** regression analyses u
 
 - Examines how work-related and lifestyle factors relate to **quality of life (continuous)** and **depression (binary)** outcomes using multiple linear and multiple logistic regression on simulated data.
 - Uses **R**, **Quarto**, and **tidyverse-based workflows** to demonstrate data simulation, EDA, model building, interaction terms, diagnostics, and interpretation.
+- Exploratory Data Analysis (EDA) involves summarizing and visualizing datasets to understand distributions, relationships, and potential issues before modeling.
 - Status: Stable teaching example for the GDT500 Regression Analysis group assignment (Group 4).
 
 ---
 
 ## Contributors
 
-- DR. NAZIRUL MUNIR BIN ABU HASSAN (23202537)  
-- DR. NURFARIHAH ZULKIFLI (23202679)  
-- DR. KHAIRUNNISA BINTI ARIFFIN (23202532)  
-- DR. SANGGARY MARIMUTHU (23202894)
+
+| Name                                | Student ID | Role                      |
+|-------------------------------------|------------|---------------------------|
+| Dr. Nazirul Munir Bin Abu Hassan    | 23202537   | Analysis & Documentation  |
+| Dr. Nurfarihah Zulkifli             | 23202679   | Data Simulation           |
+| Dr. Khairunnisa Binti Ariffin       | 23202532   | Model Diagnostics         |
+| Dr. Sanggary Marimuthu              | 23202894   | Visualization & Reporting |
+
 
 ---
 
@@ -61,6 +73,23 @@ Layout within this repository:
     - `data_generation_depression.R`  
 
 - `README.md` – this overview file
+
+
+```
+├── Multiple-Linear-Regression/
+│   ├── Group4_MLR.qmd
+│   ├── Group4_MLR.html
+│   └── data/
+│       ├── simulated_qol_data.csv
+│       └── data_generation_qol.R
+├── Multiple-Logistic-Regression/
+│   ├── Group4_MLogR.qmd
+│   ├── Group4_MLogR.html
+│   └── data/
+│       ├── simulated_depression_data.csv
+│       └── data_generation_depression.R
+└── README.md
+```
 
 ---
 
@@ -157,7 +186,7 @@ All datasets are **fully simulated** for educational purposes and contain no rea
   - `qol` – continuous quality of life score  
   - `years_working` – continuous predictor  
   - `phys_activity` – continuous predictor
-  - `obesity` – binary obesity statu
+  - `obesity` – binary obesity status
   - `phys_activity x obesity` - interaction term between physical activity and obesity
 - Generated with fixed seeds in `data_generation_qol.R` or in Part A of the MLR analysis document.
 
@@ -227,7 +256,6 @@ A more detailed data dictionary can be included in each HTML report or a separat
   - Narrative interpretation of main effects, interaction, model fit, practical significance, and robustness.  
   - Prediction section with new data simulation, fitted values, and visualization of predicted QoL across predictor ranges.
 
-
 ---
 
 ## Results
@@ -252,14 +280,14 @@ For corrections or suggestions, please contact the group members or instructor w
 
 ## Disclaimer
 
-This repository contains academic work prepared for the GDT500 Multivariable Analysis course.  
-All datasets are **simulated** and do not contain real participant data.  
+- This repository was developed as part of the **GDT500 Multivariable Analysis course**.  
+- All datasets included are **simulated** and contain no real participant information.  
 
-Coding support and data generation were assisted by **Microsoft Copilot**, an AI companion.  
-Copilot was used to streamline code structuring, automate data simulation, and refine documentation.  
-All analytical decisions, interpretations, and conclusions remain the responsibility of the authors.  
+- Development of code and data generation was supported by **Microsoft Copilot**, an AI companion.  
+- Copilot assisted with structuring code, automating simulations, and refining documentation; however, all analytical choices, interpretations, and conclusions remain the sole responsibility of the authors.  
 
-The outputs are intended solely for **educational and demonstration purposes** and should not be used for clinical or policy decision‑making.
+- The materials provided here are intended exclusively for **educational and demonstration purposes**.  
+- They should **not** be applied to clinical practice, policy decisions, or any real‑world patient data analysis.
 
 ---
 
@@ -267,3 +295,7 @@ The outputs are intended solely for **educational and demonstration purposes** a
 
 This project is licensed under the **MIT License**.  
 See the top-level `LICENSE` file for full details.
+
+## Version History
+
+- v1.0.0 (2026-01-05): Initial release with complete linear and logistic regression analyses.
